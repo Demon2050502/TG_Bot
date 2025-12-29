@@ -40,6 +40,7 @@ func (s *Service) StartServe() error {
 			fmt.Println("Received command:", cmd)
 		}
 	}
+	
 	return nil
 }
 
