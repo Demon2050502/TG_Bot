@@ -13,6 +13,9 @@ type IncomingMessage struct {
 }
 
 type IncomingCommand struct {
+	ChatID int64
+	Name   string 
+	Args   string
 }
 
 // type SendMessageCommand struct {
@@ -72,6 +75,16 @@ func (a *Adapter) startAdapter() error{
 		return err
 	}
 
+	commands := []tgbotapi.BotCommand{
+	{Command: "start", Description: "Запуск и помощь"},
+	{Command: "schema", Description: "Расписание релизов на неделю"},
+}
+
+	cfg := tgbotapi.NewSetMyCommands(commands...)
+	if _, err := a.bot.Request(cfg); err != nil {
+		log.Println("Не удалось установить команды:", err)
+	}
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = a.Config.Timeout
 
@@ -79,17 +92,26 @@ func (a *Adapter) startAdapter() error{
 
 	go func() {
 		for upd := range updates {
-			switch {
-			case upd.Message.Text != "":
-				// if upd.Message.Chat != nil {continue} // игнорируем сообщения из каналов
-				msq := IncomingMessage{
+			if upd.Message == nil || upd.Message.Chat == nil {
+				continue
+			}
+
+			// Команды (/schema)
+			if upd.Message.IsCommand() {
+				a.commandChan <- IncomingCommand{
+					ChatID: upd.Message.Chat.ID,
+					Name:   upd.Message.Command(),
+					Args:   upd.Message.CommandArguments(),
+				}
+				continue
+			}
+
+			// Обычный текст
+			if upd.Message.Text != "" {
+				a.messageChan <- IncomingMessage{
 					ChatID: upd.Message.Chat.ID,
 					Text:   upd.Message.Text,
 				}
-				a.messageChan <- msq
-
-			case upd.CallbackQuery != nil:
-
 			}
 		}
 	}()
